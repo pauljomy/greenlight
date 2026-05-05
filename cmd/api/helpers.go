@@ -19,15 +19,23 @@ func (app *application) readIDParam(r *http.Request) (int64, error) {
 	return id, nil
 }
 
-func (app *application) writeJSON(w http.ResponseWriter, status int, data any) {
+type envelope map[string]any
 
-	out, err := json.Marshal(data)
+func (app *application) writeJSON(w http.ResponseWriter, status int, data envelope, headers http.Header) error {
+
+	out, err := json.MarshalIndent(data, "", "\t")
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		return err
+	}
+
+	for key, value := range headers {
+		w.Header()[key] = value
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	w.Write(out)
+
+	return nil
 }

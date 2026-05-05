@@ -44,7 +44,7 @@ func main() {
 		IdleTimeout:  time.Minute,
 	}
 
-	logger.Info("Server is running", "port", cfg.port, "env", cfg.env, "version", version)
+	logger.Info("Starting server", "port", cfg.port, "env", cfg.env, "version", version)
 
 	err := srv.ListenAndServe()
 	if err != nil {

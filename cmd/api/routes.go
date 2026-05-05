@@ -9,6 +9,10 @@ import (
 func (app *application) routes() http.Handler {
 
 	router := chi.NewRouter()
+
+	router.NotFound(app.notFoundResponse)
+	router.MethodNotAllowed(app.methodNotAllowedResponse)
+
 	router.Route("/v1", func(r chi.Router) {
 
 		r.Get("/healthcheck", app.healthcheckHandler)
