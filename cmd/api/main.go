@@ -12,6 +12,8 @@ import (
 
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
+	"github.com/pauljomy/greenlight/internal/data"
+	"github.com/pauljomy/greenlight/internal/env"
 )
 
 const version = "1.0.0"
@@ -23,12 +25,16 @@ type config struct {
 }
 
 type dbconfig struct {
-	dsn string
+	dsn          string
+	maxOpenConns int
+	maxIdleConns int
+	maxIdleTime  string
 }
 
 type application struct {
 	config config
 	logger *slog.Logger
+	models data.Models
 }
 
 func main() {
@@ -36,17 +42,21 @@ func main() {
 	godotenv.Load()
 	var cfg config
 
-	flag.IntVar(&cfg.port, "port", 4000, "API server port")
-	flag.StringVar(&cfg.env, "env", "development", "Environment(development|staging|production)")
-	flag.StringVar(&cfg.db.dsn, "db-dsn", "postgres://greenlight:pa55word@localhost:5432/greenlight", "PostgreSQL DSN")
+	port := env.GetInt("PORT", 8080)
+	environment := env.GetString("ENV", "development")
+	greenlightDB := env.GetString("GREENLIGHT_DB_DSN", ``)
+
+	flag.IntVar(&cfg.port, "port", port, "API server port")
+	flag.StringVar(&cfg.env, "env", environment, "Environment(development|staging|production)")
+	flag.StringVar(&cfg.db.dsn, "db-dsn", greenlightDB, "PostgreSQL DSN")
+
+	flag.IntVar(&cfg.db.maxOpenConns, "db-max-open-conns", 25, "Postgres max open connections")
+	flag.IntVar(&cfg.db.maxIdleConns, "db-max-idle-conns", 25, "Postgres max idle connections")
+	flag.StringVar(&cfg.db.maxIdleTime, "db-max-idle-time", "15m", "Postgres max idle time")
+
 	flag.Parse()
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
-
-	app := &application{
-		config: cfg,
-		logger: logger,
-	}
 
 	db, err := openDB(cfg)
 	if err != nil {
@@ -56,6 +66,13 @@ func main() {
 
 	defer db.Close()
 	logger.Info("Database connection established")
+
+	app := &application{
+		config: cfg,
+		logger: logger,
+		models: *data.NewModels(db),
+	}
+
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.port),
 		Handler:      app.routes(),
@@ -79,6 +96,15 @@ func openDB(cfg config) (*sql.DB, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	db.SetMaxOpenConns(cfg.db.maxOpenConns)
+	db.SetMaxIdleConns(cfg.db.maxIdleConns)
+
+	duration, err := time.ParseDuration(cfg.db.maxIdleTime)
+	if err != nil {
+		return nil, err
+	}
+	db.SetConnMaxIdleTime(duration)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
