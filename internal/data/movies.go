@@ -1,6 +1,7 @@
 package data
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"time"
@@ -43,7 +44,10 @@ func (m *MovieModel) Insert(movie *Movie) error {
 
 	args := []any{movie.Title, movie.Year, movie.Runtime, pq.Array(movie.Genres)}
 
-	return m.DB.QueryRow(query, args...).Scan(&movie.ID, &movie.CreatedAt, &movie.Version)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	defer cancel()
+
+	return m.DB.QueryRowContext(ctx, query, args...).Scan(&movie.ID, &movie.CreatedAt, &movie.Version)
 }
 
 func (m *MovieModel) Get(id int64) (*Movie, error) {
@@ -53,9 +57,13 @@ func (m *MovieModel) Get(id int64) (*Movie, error) {
 
 	query := `select id, created_at, version, title, year, runtime, genres from movies where id= $1`
 
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
 	var movie Movie
 
-	err := m.DB.QueryRow(query, id).Scan(
+	err := m.DB.QueryRowContext(ctx, query, id).Scan(
+
 		&movie.ID,
 		&movie.CreatedAt,
 		&movie.Version,
@@ -78,9 +86,50 @@ func (m *MovieModel) Get(id int64) (*Movie, error) {
 }
 
 func (m *MovieModel) Update(movie *Movie) error {
+	query := `update movies set title=$1, year=$2, runtime=$3, genres=$4, version= version + 1 where id=$5 and version=$6 returning version`
+
+	args := []any{movie.Title, movie.Year, movie.Runtime, pq.Array(movie.Genres), movie.ID, movie.Version}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	defer cancel()
+
+	err := m.DB.QueryRowContext(ctx, query, args...).Scan(&movie.Version)
+	if err != nil {
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			return ErrEditConflict
+		default:
+			return err
+		}
+
+	}
 	return nil
+
 }
 
 func (m *MovieModel) Delete(id int64) error {
+
+	if id < 1 {
+		return errors.New("invalid id")
+	}
+	query := `delete from movies where id=$1`
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	defer cancel()
+
+	result, err := m.DB.ExecContext(ctx, query, id)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	if rowsAffected == 0 {
+		return ErrRecordNotFound
+	}
+
 	return nil
 }
