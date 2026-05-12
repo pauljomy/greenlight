@@ -1,6 +1,8 @@
 package main
 
-import "net/http"
+import (
+	"net/http"
+)
 
 func (app *application) healthcheckHandler(w http.ResponseWriter, r *http.Request) {
 	env := envelope{
@@ -10,6 +12,7 @@ func (app *application) healthcheckHandler(w http.ResponseWriter, r *http.Reques
 			"version":     version,
 		},
 	}
+
 	err := app.writeJSON(w, http.StatusOK, env, nil)
 	if err != nil {
 		app.serverErrorResponse(w, r, err)

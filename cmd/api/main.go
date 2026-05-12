@@ -4,9 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"flag"
-	"fmt"
 	"log/slog"
-	"net/http"
 	"os"
 	"time"
 
@@ -19,9 +17,10 @@ import (
 const version = "1.0.0"
 
 type config struct {
-	port int
-	env  string
-	db   dbconfig
+	port    int
+	env     string
+	db      dbconfig
+	limiter limiterConfig
 }
 
 type dbconfig struct {
@@ -29,6 +28,12 @@ type dbconfig struct {
 	maxOpenConns int
 	maxIdleConns int
 	maxIdleTime  string
+}
+
+type limiterConfig struct {
+	rps     float64
+	burst   int
+	enabled bool
 }
 
 type application struct {
@@ -53,7 +58,9 @@ func main() {
 	flag.IntVar(&cfg.db.maxOpenConns, "db-max-open-conns", 25, "Postgres max open connections")
 	flag.IntVar(&cfg.db.maxIdleConns, "db-max-idle-conns", 25, "Postgres max idle connections")
 	flag.StringVar(&cfg.db.maxIdleTime, "db-max-idle-time", "15m", "Postgres max idle time")
-
+	flag.Float64Var(&cfg.limiter.rps, "limiter-rps", 2, "Rate limiter maximum requests per second")
+	flag.IntVar(&cfg.limiter.burst, "limiter-burst", 4, "Rate limiter burst")
+	flag.BoolVar(&cfg.limiter.enabled, "limiter-enabled", true, "Rate limiter enabled")
 	flag.Parse()
 
 	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
@@ -73,20 +80,9 @@ func main() {
 		models: *data.NewModels(db),
 	}
 
-	srv := &http.Server{
-		Addr:         fmt.Sprintf(":%d", cfg.port),
-		Handler:      app.routes(),
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 30 * time.Second,
-		IdleTimeout:  time.Minute,
-	}
-
-	logger.Info("Starting server", "port", cfg.port, "env", cfg.env, "version", version)
-
-	err = srv.ListenAndServe()
+	err = app.serve()
 	if err != nil {
-		logger.Error("Failed to start server", "error", err)
-		os.Exit(1)
+		logger.Error("Failed to load the server", "error", err)
 	}
 
 }
