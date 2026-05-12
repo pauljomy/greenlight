@@ -10,6 +10,9 @@ func (app *application) routes() http.Handler {
 
 	router := chi.NewRouter()
 
+	router.Use(app.recoverPanic)
+	router.Use(app.rateLimiter)
+
 	router.NotFound(app.notFoundResponse)
 	router.MethodNotAllowed(app.methodNotAllowedResponse)
 
