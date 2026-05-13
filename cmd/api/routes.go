@@ -19,6 +19,7 @@ func (app *application) routes() http.Handler {
 	router.Route("/v1", func(r chi.Router) {
 
 		r.Get("/healthcheck", app.healthcheckHandler)
+		r.Post("/users", app.registerUserHandler)
 
 		r.Route("/movies", func(r chi.Router) {
 			r.Get("/", app.listMoviesHandler)

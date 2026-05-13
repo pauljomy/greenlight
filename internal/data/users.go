@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/pauljomy/greenlight/internal/validator"
@@ -78,7 +79,7 @@ func ValidateUser(v *validator.Validator, user *User) {
 		ValidatePlainPassword(v, *user.Password.plaintext)
 	}
 
-	if user.Password.hash != nil {
+	if user.Password.hash == nil {
 		panic("missing password hash for user")
 	}
 }
@@ -87,7 +88,7 @@ func (m *UserModel) Insert(user *User) error {
 
 	query := `insert into users (name, email, password_hash, activated) values($1, $2, $3, $4) returning id, created_at, version`
 
-	args := []any{user.Name, user.Email, user.Password, user.Activated}
+	args := []any{user.Name, user.Email, user.Password.hash, user.Activated}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 	defer cancel()
@@ -95,7 +96,7 @@ func (m *UserModel) Insert(user *User) error {
 	err := m.DB.QueryRowContext(ctx, query, args...).Scan(&user.ID, &user.CreatedAt, &user.Version)
 	if err != nil {
 		switch {
-		case err.Error() == `pq: duplicate key value violates unique constraint "users_email_key`:
+		case strings.Contains(err.Error(), `pq: duplicate key value violates unique constraint "users_email_key"`):
 			return ErrDuplicateEmail
 		default:
 			return err
@@ -129,7 +130,7 @@ func (m *UserModel) Update(user *User) error {
 
 	query := `update users set name=$1, email=$2, password_hash=$3, activated=$4, version= version +1 where id=$5 and version=$6 returning version`
 
-	args := []any{user.Name, user.Email, user.Password, user.Activated, user.ID, user.Version}
+	args := []any{user.Name, user.Email, user.Password.hash, user.Activated, user.ID, user.Version}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 	defer cancel()
@@ -137,7 +138,7 @@ func (m *UserModel) Update(user *User) error {
 	err := m.DB.QueryRowContext(ctx, query, args...).Scan(&user.Version)
 	if err != nil {
 		switch {
-		case err.Error() == `pq: duplicate key value violates unique constraint "users_email_key`:
+		case strings.Contains(err.Error(), `pq: duplicate key value violates unique constraint "users_email_key"`):
 			return ErrDuplicateEmail
 		case errors.Is(err, sql.ErrNoRows):
 			return ErrEditConflict
