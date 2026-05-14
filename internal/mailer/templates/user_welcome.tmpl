@@ -1,0 +1,31 @@
+{{define "subject"}}Welcome to Greenlight{{end}}
+
+{{define "plainBody"}}
+
+Hi,
+
+Thanks for signing up for a Greenlight accoutn. We are excited to have you on board!
+
+For future reference, your user number is {{.ID}}.
+
+Thanks,
+The Greenlight Team
+
+{{end}}
+
+{{define "htmlBody"}}
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Welcome to Greenlight</title>
+</head>
+<body>
+    <p>Hi,</p>
+    <p>Thanks for signing up for a Greenlight account. We are excited to have you on board!</p>
+    <p>For future reference, your user number is {{.ID}}.</p>
+    <p>Thanks,</p>
+    <p>The Greenlight Team</p>
+</body>
+</html>
+{{end}}
