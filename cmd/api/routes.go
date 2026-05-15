@@ -31,6 +31,10 @@ func (app *application) routes() http.Handler {
 			r.Patch("/{id}", app.updateMovieHandler)
 			r.Delete("/{id}", app.deleteMovieHandler)
 		})
+
+		r.Route("/tokens", func(r chi.Router) {
+			r.Post("/authentication", app.createAuthenticationTokenHandler)
+		})
 	})
 
 	return router

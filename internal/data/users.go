@@ -14,6 +14,8 @@ import (
 
 var ErrDuplicateEmail = errors.New("duplicate email")
 
+var anonymousUser = &User{}
+
 type UserModel struct {
 	DB *sql.DB
 }
@@ -31,6 +33,10 @@ type User struct {
 type password struct {
 	hash      []byte
 	plaintext *string
+}
+
+func (u *User) IsAnonymous() bool {
+	return u == anonymousUser
 }
 
 func (p *password) Set(plaintextPassword string) error {
@@ -108,14 +114,14 @@ func (m *UserModel) Insert(user *User) error {
 }
 
 func (m *UserModel) GetByEmail(email string) (*User, error) {
-	query := `select id, created_at, name, email, password_has, activated, version from users where email = $1`
+	query := `select id, created_at, name, email, password_hash, activated, version from users where email = $1`
 
 	var user User
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 	defer cancel()
 
-	err := m.DB.QueryRowContext(ctx, query, email).Scan(&user.ID, &user.CreatedAt, &user.Name, &user.Email, &user.Password, &user.Activated, &user.Version)
+	err := m.DB.QueryRowContext(ctx, query, email).Scan(&user.ID, &user.CreatedAt, &user.Name, &user.Email, &user.Password.hash, &user.Activated, &user.Version)
 	if err != nil {
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
